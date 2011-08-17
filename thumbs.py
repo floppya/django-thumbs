@@ -1,13 +1,41 @@
 # -*- encoding: utf-8 -*-
 """
-django-thumbs by Antonio Melé
-http://django.es
+django-thumbs on-the-fly
+https://github.com/madmw/django-thumbs
+
+A fork of django-thumbs [http://code.google.com/p/django-thumbs/] by Antonio Melé [http://django.es].
+
+Settings
+========
+THUMBS_GENERATE_THUMBNAILS
+Generate thumbnails when saving objects.
+Default: True
+
+THUMBS_GENERATE_MISSING_THUMBNAILS
+Generate thumbnail when its url is accessed and the the file doesn't exist.
+Set this option when you are replacing ImageField with ImageWithThumbsField on a populated database where the thumbnails doesn't exist.
+Default: True
+
+THUMBS_GENERATE_ANY_SIZE
+Generate the thumbnail even if it's not in the configured `sizes` argument.
+Default: False
+
 """
+import cStringIO
 from django.db.models import ImageField
 from django.db.models.fields.files import ImageFieldFile
-from PIL import Image
 from django.core.files.base import ContentFile
-import cStringIO
+from django.conf import settings
+
+THUMBS_GENERATE_THUMBNAILS = getattr(settings, "THUMBS_GENERATE_THUMBNAILS", True)
+THUMBS_GENERATE_MISSING_THUMBNAILS = getattr(settings, "THUMBS_GENERATE_MISSING_THUMBNAILS", True)
+THUMBS_GENERATE_ANY_SIZE = getattr(settings, "THUMBS_GENERATE_ANY_SIZE", False)
+
+try:
+    from PIL import Image
+except:
+    # Mac OSX
+    import Image
 
 def generate_thumb(img, thumb_size, format):
     """
@@ -61,57 +89,143 @@ def generate_thumb(img, thumb_size, format):
     return ContentFile(io.getvalue())    
 
 class ImageWithThumbsFieldFile(ImageFieldFile):
+    """Django `ImageField` replacement with automatic generation of thumbnail images.
+       See `ImageWithThumbsField` for usage example.
+
     """
-    See ImageWithThumbsField for usage example
-    """
+
+    THUMB_SUFFIX = '%s.%sx%s.%s'  
+
     def __init__(self, *args, **kwargs):
-        super(ImageWithThumbsFieldFile, self).__init__(*args, **kwargs)
+        super(ImageFieldFile, self).__init__(*args, **kwargs)
+
+    def _url_for_size(self, size):
+        """Return a URL pointing to the thumbnail image of the requested size.
+        If `THUMBS_GENERATE_MISSING_THUMBNAILS` is True, the thumbnail will be created if it doesn't exist on disk.
+            
+        Arguments:
+        size  -- A tuple with the desired width and height. Example: (100, 100)
+
+        """
+        if not self:
+            return ''
+        else:
+            # generate missing thumbnail if needed
+            fileBase, extension = self.name.rsplit('.', 1)
+            thumb_file = self.THUMB_SUFFIX % (fileBase, size[0], size[1], extension)
+            if THUMBS_GENERATE_MISSING_THUMBNAILS:
+                if not self.storage.exists(thumb_file):
+                    try:
+                        self._generate_thumb(self.storage.open(self.name), size)
+                    except:
+                        if settings.DEBUG:
+                            import sys
+                            print "Exception generating thumbnail"
+                            print sys.exc_info()
+            urlBase, extension = self.url.rsplit('.', 1)
+            thumb_url = self.THUMB_SUFFIX % (urlBase, size[0], size[1], extension)
+            return thumb_url
+
+    def __getattr__(self, name):
+        """Return the url for the requested size.
+
+        Arguments:
+        name -- The field `url` with size suffix formatted as _WxH. Example: instance.url_100x70
+
+        """
+        sizeStr = name.replace("url_", "")
+        width, height = sizeStr.split("x")
+        requestedSize = (int(width), int(height))
+        acceptedSize = None
+        if THUMBS_GENERATE_ANY_SIZE: 
+            acceptedSize = requestedSize
+        else:
+            for configuredSize in self.field.sizes:
+                # FIXME: fuzzy search, accept nearest size
+                if requestedSize == configuredSize:
+                    acceptedSize = requestedSize
+        if acceptedSize is not None:
+            return self._url_for_size(acceptedSize)
+        raise ValueError("The requested thumbnail size %s doesn't exist" % sizeStr)
+
+    def _generate_thumb(self, image, size):
+        """Generates a thumbnail of `size`.
         
-        if self.field.sizes:
-            def get_size(self, size):
-                if not self:
-                    return ''
-                else:
-                    split = self.url.rsplit('.',1)
-                    thumb_url = '%s.%sx%s.%s' % (split[0],w,h,split[1])
-                    return thumb_url
-                    
-            for size in self.field.sizes:
-                (w,h) = size
-                setattr(self, 'url_%sx%s' % (w,h), get_size(self, size))
-                
+        Arguments:
+        image -- An `File` object with the image in its original size.
+        size  -- A tuple with the desired width and height. Example: (100, 100)
+
+        """
+        base, extension = self.name.rsplit('.', 1)
+        thumb_name = self.THUMB_SUFFIX % (base, size[0], size[1], extension)
+        thumbnail = generate_thumb(image, size, extension)
+        saved_as = self.storage.save(thumb_name, thumbnail)        
+        if thumb_name != saved_as:
+            raise ValueError('There is already a file named %s' % thumb_name)
+
     def save(self, name, content, save=True):
-        super(ImageWithThumbsFieldFile, self).save(name, content, save)
-        
-        if self.field.sizes:
-            for size in self.field.sizes:
-                (w,h) = size
-                split = self.name.rsplit('.',1)
-                thumb_name = '%s.%sx%s.%s' % (split[0],w,h,split[1])
-                
-                # you can use another thumbnailing function if you like
-                thumb_content = generate_thumb(content, size, split[1])
-                
-                thumb_name_ = self.storage.save(thumb_name, thumb_content)        
-                
-                if not thumb_name == thumb_name_:
-                    raise ValueError('There is already a file named %s' % thumb_name)
-        
+        super(ImageFieldFile, self).save(name, content, save)
+        if THUMBS_GENERATE_THUMBNAILS:
+            if self.field.sizes:
+                for size in self.field.sizes:
+                    try:
+                        self._generate_thumb(content, size)
+                    except:
+                        if settings.DEBUG:
+                            import sys
+                            print "Exception generating thumbnail"
+                            print sys.exc_info()
+
     def delete(self, save=True):
-        name=self.name
-        super(ImageWithThumbsFieldFile, self).delete(save)
-        if self.field.sizes:
+        if self.name and self.field.sizes:
             for size in self.field.sizes:
-                (w,h) = size
-                split = name.rsplit('.',1)
-                thumb_name = '%s.%sx%s.%s' % (split[0],w,h,split[1])
+                base, extension = self.name.rsplit('.', 1)
+                thumb_name = self.THUMB_SUFFIX % (base, size[0], size[1], extension)
                 try:
                     self.storage.delete(thumb_name)
                 except:
-                    pass
-                        
+                    if settings.DEBUG:
+                        import sys
+                        print "Exception deleting thumbnails"
+                        print sys.exc_info()
+        super(ImageFieldFile, self).delete(save)
+
+    def generate_thumbnails(self):
+        """
+        """
+        if self.field.sizes:
+            for size in self.field.sizes:
+                try:
+                    self._generate_thumb(self.storage.open(self.name), size)
+                except:
+                    if settings.DEBUG:
+                        import sys
+                        print "Exception generating thumbnail"
+                        print sys.exc_info()
+
+    def thumbnail(self, widthOrSize, height=None):
+        """
+        Return the thumbnail url for an specific size. The same thing as url_[width]x[height] without the magic.
+
+        Arguments:
+        widthOrSize -- Width as integer or size as tuple.
+        height      -- Height as integer. Optional, will use `widthOrSize` as height if missing.
+
+        Usage:
+        instance.thumbnail(48, 48)
+        instance.thumbnail(64)
+        instance.thumbnail( (100, 70) )
+
+        """
+        if type(widthOrSize) is tuple:
+            size = widthOrSize
+        else:
+            if height is None:
+                height = widthOrSize
+            size = (widthOrSize, height)
+        return self.__getattr__('url_%sx%s' % (size[0], size[1]))
+
 class ImageWithThumbsField(ImageField):
-    attr_class = ImageWithThumbsFieldFile
     """
     Usage example:
     ==============
@@ -149,15 +263,14 @@ class ImageWithThumbsField(ImageField):
     Note: django-thumbs assumes that if filename "any_filename.jpg" is available 
     filenames with this format "any_filename.[widht]x[height].jpg" will be available, too.
     
-    To do:
-    ======
-    Add method to regenerate thubmnails
-    
     """
+    attr_class = ImageWithThumbsFieldFile
+
     def __init__(self, verbose_name=None, name=None, width_field=None, height_field=None, sizes=None, **kwargs):
-        self.verbose_name=verbose_name
-        self.name=name
-        self.width_field=width_field
-        self.height_field=height_field
+        self.verbose_name = verbose_name
+        self.name = name
+        self.width_field = width_field
+        self.height_field = height_field
         self.sizes = sizes
         super(ImageField, self).__init__(**kwargs)
+
