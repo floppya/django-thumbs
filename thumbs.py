@@ -244,3 +244,20 @@ class ImageWithThumbsField(ImageField):
         self.sizes = sizes
         super(ImageField, self).__init__(**kwargs)
 
+
+try:
+    from south.modelsinspector import add_introspection_rules
+except ImportError:
+    pass
+else:
+    add_introspection_rules([
+            (
+                [ImageWithThumbsField],
+                [],
+                {
+                    'sizes': ['sizes', {}],
+                },
+            ),
+        ]
+        ['^%s.ImageWithThumbsField' % __name__.replace('\\', '.\\')]
+    )
