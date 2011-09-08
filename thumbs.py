@@ -258,6 +258,6 @@ else:
                     'sizes': ['sizes', {}],
                 },
             ),
-        ]
+        ],
         ['^%s.ImageWithThumbsField' % __name__.replace('\\', '.\\')]
     )
