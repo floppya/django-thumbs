@@ -5,31 +5,13 @@ https://github.com/madmw/django-thumbs
 
 A fork of django-thumbs [http://code.google.com/p/django-thumbs/] by Antonio Melé [http://django.es].
 
-Settings
-========
-THUMBS_GENERATE_THUMBNAILS
-Generate thumbnails when saving objects.
-Default: True
-
-THUMBS_GENERATE_MISSING_THUMBNAILS
-Generate thumbnail when its url is accessed and the the file doesn't exist.
-Set this option when you are replacing ImageField with ImageWithThumbsField on a populated database where the thumbnails doesn't exist.
-Default: True
-
-THUMBS_GENERATE_ANY_SIZE
-Generate the thumbnail even if it's not in the configured `sizes` argument.
-Default: False
-
 """
 import cStringIO
 from django.db.models import ImageField
 from django.db.models.fields.files import ImageFieldFile
 from django.core.files.base import ContentFile
 from django.conf import settings
-
-THUMBS_GENERATE_THUMBNAILS = getattr(settings, "THUMBS_GENERATE_THUMBNAILS", True)
-THUMBS_GENERATE_MISSING_THUMBNAILS = getattr(settings, "THUMBS_GENERATE_MISSING_THUMBNAILS", True)
-THUMBS_GENERATE_ANY_SIZE = getattr(settings, "THUMBS_GENERATE_ANY_SIZE", False)
+from django_thumbs.settings import THUMBS_GENERATE_ANY_SIZE, THUMBS_GENERATE_MISSING_THUMBNAILS, THUMBS_GENERATE_THUMBNAILS
 
 try:
     from PIL import Image, ImageOps
@@ -37,17 +19,18 @@ except:
     # Mac OSX
     import Image, ImageOps
 
+
 def generate_thumb(original, size, format='JPEG'):
     """
     Generates a thumbnail image and returns a ContentFile object with the thumbnail
-    
+
     Arguments:
     original -- The image being resized as `File`.
     size     -- Desired thumbnail size as `tuple`. Example: (70, 100)
     format   -- Format of the original image ('JPEG', 'PNG', ...) The thumbnail will be generated using this same format.
 
     """
-    original.seek(0) # see http://code.djangoproject.com/ticket/8222 for details
+    original.seek(0)  # see http://code.djangoproject.com/ticket/8222 for details
     image = Image.open(original)
     if image.mode not in ('L', 'RGB', 'RGBA'):
         image = image.convert('RGB')
@@ -56,7 +39,8 @@ def generate_thumb(original, size, format='JPEG'):
     if format.upper() == 'JPG':
         format = 'JPEG'
     thumbnail.save(io, format)
-    return ContentFile(io.getvalue())    
+    return ContentFile(io.getvalue())
+
 
 class ImageWithThumbsFieldFile(ImageFieldFile):
     """Django `ImageField` replacement with automatic generation of thumbnail images.
@@ -64,7 +48,7 @@ class ImageWithThumbsFieldFile(ImageFieldFile):
 
     """
 
-    THUMB_SUFFIX = '%s.%sx%s.%s'  
+    THUMB_SUFFIX = '%s.%sx%s.%s'
 
     def __init__(self, *args, **kwargs):
         super(ImageFieldFile, self).__init__(*args, **kwargs)
@@ -107,7 +91,7 @@ class ImageWithThumbsFieldFile(ImageFieldFile):
         width, height = sizeStr.split("x")
         requestedSize = (int(width), int(height))
         acceptedSize = None
-        if THUMBS_GENERATE_ANY_SIZE: 
+        if THUMBS_GENERATE_ANY_SIZE:
             acceptedSize = requestedSize
         else:
             for configuredSize in self.field.sizes:
@@ -129,7 +113,7 @@ class ImageWithThumbsFieldFile(ImageFieldFile):
         base, extension = self.name.rsplit('.', 1)
         thumb_name = self.THUMB_SUFFIX % (base, size[0], size[1], extension)
         thumbnail = generate_thumb(image, size, extension)
-        saved_as = self.storage.save(thumb_name, thumbnail)        
+        saved_as = self.storage.save(thumb_name, thumbnail)
         if thumb_name != saved_as:
             raise ValueError('There is already a file named %s' % thumb_name)
 
@@ -195,6 +179,7 @@ class ImageWithThumbsFieldFile(ImageFieldFile):
             size = (widthOrSize, height)
         return self.__getattr__('url_%sx%s' % (size[0], size[1]))
 
+
 class ImageWithThumbsField(ImageField):
     """
     Usage example:
@@ -207,12 +192,12 @@ class ImageWithThumbsField(ImageField):
         my_object.photo.url_125x125
         my_object.photo.url_300x200
     
-    Note: The 'sizes' attribute is not required. If you don't provide it, 
+    Note: The 'sizes' attribute is not required. If you don't provide it,
     ImageWithThumbsField will act as a normal ImageField
         
     How it works:
     =============
-    For each size in the 'sizes' atribute of the field it generates a 
+    For each size in the 'sizes' atribute of the field it generates a
     thumbnail with that size and stores it following this format:
     
     available_filename.[width]x[height].extension
@@ -230,7 +215,7 @@ class ImageWithThumbsField(ImageField):
     photo_.125x125.jpg
     photo_.300x200.jpg
     
-    Note: django-thumbs assumes that if filename "any_filename.jpg" is available 
+    Note: django-thumbs assumes that if filename "any_filename.jpg" is available
     filenames with this format "any_filename.[widht]x[height].jpg" will be available, too.
     
     """
@@ -243,4 +228,3 @@ class ImageWithThumbsField(ImageField):
         self.height_field = height_field
         self.sizes = sizes
         super(ImageField, self).__init__(**kwargs)
-

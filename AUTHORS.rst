@@ -9,4 +9,5 @@ Original author
  Contributors
  ============
 
+* Julian Romero <julian@wuonm.com>
 * Alexis Couronne <alexis.couronne@scopart.fr>
