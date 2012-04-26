@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% for photo in photos %}
+<div>
+    <a href="/show-img-{{photo.id}}"><img src="{{photo.image.url_125x125}}" width="125" height="125" title="{{photo.title}}" /></a>
+</div>
+{% endfor %}
+{% endblock %}
