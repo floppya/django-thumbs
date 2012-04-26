@@ -1,39 +1,63 @@
-Learn more about [this fork](https://github.com/madmw/django-thumbs/wiki/AboutThisFork).
-
-django-thumbs
+=============
+Django-thumbs
 =============
 
 The easiest way to create thumbnails for your images with Django. Works with any StorageBackend.
-Esta página también está [disponible en español](http://code.google.com/p/django-thumbs/wiki/Spanish).
 
 
 Features
 ========
+  
+* Easy to integrate in your code (no database changes, works as an ImageField)
+* Works perfectly with any StorageBackend
+* Generates thumbnails after image is uploaded into memory
+* Deletes thumbnails when the image file is deleted
+* Provides easy access to the thumbnails' URLs (similar method as with ImageField)
 
-  * Easy to integrate in your code (no database changes, works as an ImageField)
-  * Works perfectly with any StorageBackend
-  * Generates thumbnails after image is uploaded into memory
-  * Deletes thumbnails when the image file is deleted
-  * Provides easy access to the thumbnails' URLs (similar method as with ImageField)
 
-django-thumbs requires django 1.1 or development version
+Requirements
+============
+
+* Python 2.5+
+* Django 1.1+
+* PIL (Python Image Library)
+
+
+Getting It
+==========
+
+You can get Django-Thumbs by using pip or easy_install:
+
+::
+
+  $ pip install django-thumbs
+  or
+  $ easy_install django-thumbs
+
+If you want to install it from source, grab the git repository from github and run setup.py:
+
+::
+
+  $ git clone git://github.com/skitoo/django-thumbs.git
+  $ cd django-thumbs
+  $ python setup.py install
+
 
 Installation
 ============
 
-  * Download thumbs.py
-  * Import it in your models.py and replace ImageField with ImageWithThumbsField in your model
-  * Add a sizes attribute with a list of sizes you want to use for the thumbnails
-  * Make sure your have defined MEDIA_URL in your settings.py
-  * That's it!
+* Import it in your models.py and replace ImageField with ImageWithThumbsField in your model
+* Add a sizes attribute with a list of sizes you want to use for the thumbnails
+* Make sure your have defined MEDIA_URL in your settings.py
+* That's it!
 
 Working example
 ===============
 
-models.py
+::
 
     from django.db import models
-    from thumbs import ImageWithThumbsField
+    from django_thumbs.db.models import ImageWithThumbsField
 
     class Person(models.Model):
         photo = ImageWithThumbsField(upload_to='images', sizes=((125,125),(200,200)))
