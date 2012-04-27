@@ -3,3 +3,5 @@
 *.pyc
 examples/simple_example/simple_example/media/photos
 test.db
+dist
+*.egg-info
