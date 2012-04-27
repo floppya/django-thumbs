@@ -30,7 +30,7 @@ setup(
       description = 'Django-Thumbs is the easiest way to create thumbnails for your images with Django. Works with any StorageBackend.',
       long_description = open(os.path.join(os.path.dirname(__file__), 'README.rst')).read(),
       keywords = 'django thumbs image',
-      url = 'http://djangothumbnails.com/',
+      url = 'https://github.com/skitoo/django-thumbs',
       license = 'New BSD License',
       platforms = ['OS Independent'],
       classifiers = CLASSIFIERS,
